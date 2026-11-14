@@ -1,0 +1,30 @@
+name: Bug report
+description: save or restore didn't do what you expected
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: claude-sessions version
+      description: Output of `claude-sessions --version`
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: OS, terminal and Claude Code version
+      placeholder: macOS 15.3, iTerm2 3.5.11, Claude Code 2.1.x
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Output of `claude-sessions list` and `claude-sessions restore --dry-run`
+      description: Feel free to redact paths and session names.
+      render: text

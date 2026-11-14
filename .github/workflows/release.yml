@@ -1,0 +1,35 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Tests
+        run: python -m unittest discover -s tests -v
+      - name: Tag matches __version__
+        run: |
+          v=$(python claude-sessions --version | awk '{print $2}')
+          test "v$v" = "$GITHUB_REF_NAME" || { echo "tag $GITHUB_REF_NAME != script version $v"; exit 1; }
+      - name: Release notes from CHANGELOG
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          awk -v v="$v" '$0 ~ "^## \\[" v "\\]" {f=1; next} /^## \[/ {f=0} /^\[.*\]: / {f=0} f' CHANGELOG.md > notes.md
+          cat notes.md
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sha256sum claude-sessions > claude-sessions.sha256
+          gh release create "$GITHUB_REF_NAME" claude-sessions claude-sessions.sha256 \
+            --title "$GITHUB_REF_NAME" --notes-file notes.md

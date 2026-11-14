@@ -1,0 +1,21 @@
+name: Terminal support
+description: Ask for (or offer to add) a launcher for another terminal
+labels: [terminal]
+body:
+  - type: input
+    id: terminal
+    attributes:
+      label: Terminal and OS
+    validations:
+      required: true
+  - type: textarea
+    id: cli
+    attributes:
+      label: How do you open a new tab in a given directory from the command line?
+      description: A link to the terminal's docs is fine.
+  - type: checkboxes
+    id: pr
+    attributes:
+      label: Contribution
+      options:
+        - label: I'm willing to open a PR and test it
