@@ -12,24 +12,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-go@v5
         with:
-          python-version: "3.x"
-      - name: Tests
-        run: python -m unittest discover -s tests -v
-      - name: Tag matches __version__
-        run: |
-          v=$(python claude-sessions --version | awk '{print $2}')
-          test "v$v" = "$GITHUB_REF_NAME" || { echo "tag $GITHUB_REF_NAME != script version $v"; exit 1; }
+          go-version: stable
+      - run: go test ./...
+      - name: Build binaries
+        run: scripts/build.sh "${GITHUB_REF_NAME#v}"
       - name: Release notes from CHANGELOG
         run: |
           v="${GITHUB_REF_NAME#v}"
-          awk -v v="$v" '$0 ~ "^## \\[" v "\\]" {f=1; next} /^## \[/ {f=0} /^\[.*\]: / {f=0} f' CHANGELOG.md > notes.md
+          awk -v v="$v" '$0 ~ "^## \\[" v "\\]" {f=1; next} /^## \[/ || /^\[.*\]: / {f=0} f' CHANGELOG.md > notes.md
+          test -s notes.md || { echo "CHANGELOG.md has no section for $v"; exit 1; }
           cat notes.md
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          sha256sum claude-sessions > claude-sessions.sha256
-          gh release create "$GITHUB_REF_NAME" claude-sessions claude-sessions.sha256 \
-            --title "$GITHUB_REF_NAME" --notes-file notes.md
+        run: gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --notes-file notes.md

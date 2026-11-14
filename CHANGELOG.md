@@ -9,12 +9,14 @@ All notable changes to this project are documented here. The format follows
 ## [0.1.0] - 2026-11-14
 
 ### Added
+- Standalone binaries for macOS, Linux and Windows (amd64 and arm64), with nothing else to install.
+- `install.sh` (macOS/Linux) and `install.ps1` (Windows) one-line installers that verify SHA-256 checksums.
 - `save`: snapshot every running interactive Claude Code session (ID, working directory, name) to a TSV file, keeping the previous one as `.bak`.
 - `restore`: reopen each saved session with `claude --resume <id>` in its original directory, one tab or window each.
 - `list`: show running and saved sessions, and which terminal restore would use.
 - Terminal launchers for iTerm2, Terminal.app, tmux, WezTerm, kitty, Ghostty, Alacritty, GNOME Terminal, Konsole, Xfce Terminal, xterm, Windows Terminal and the plain Windows console, plus a `print` fallback.
-- `--dry-run`, `--terminal NAME` and `--version` options.
-- Skips sessions that are already running, have no transcript, or whose directory is gone. Saves a session once if it's open in two processes.
+- `--dry-run` and `--terminal NAME` options, and a `version` command.
+- Skips sessions that are already running, have no transcript, or whose directory is gone. Saves a session once if it's open in two processes, and rejects malformed session IDs in an edited snapshot.
 - Honours `CLAUDE_CONFIG_DIR` and `CLAUDE_SESSIONS_FILE`.
 
 [Unreleased]: https://github.com/challapradyumna/claude-sessions/compare/v0.1.0...HEAD

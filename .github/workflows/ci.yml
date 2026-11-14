@@ -14,29 +14,58 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        python: ["3.9", "3.x"]
-        exclude:
-          - os: ubuntu-latest   # ubuntu-latest no longer ships 3.9
-            python: "3.9"
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-go@v5
         with:
-          python-version: ${{ matrix.python }}
-      - name: Unit tests
-        run: python -m unittest discover -s tests -v
+          go-version: stable
+      - name: gofmt
+        if: runner.os != 'Windows'
+        run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+      - run: go vet ./...
+      - run: go test -race ./...
       - name: Smoke test
+        shell: bash
         run: |
-          python claude-sessions --version
-          python claude-sessions list
+          go build -o cs .
+          ./cs version
+          ./cs list
 
-  lint:
-    runs-on: ubuntu-latest
+  install-scripts:
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-go@v5
         with:
-          python-version: "3.x"
-      - run: pip install ruff
-      - run: ruff check claude-sessions tests
+          go-version: stable
+      - name: Build release assets
+        shell: bash
+        run: scripts/build.sh 0.0.0-ci
+      - name: Serve dist locally
+        shell: bash
+        run: |
+          cd dist && (python3 -m http.server 8765 >/dev/null 2>&1 || python -m http.server 8765 >/dev/null 2>&1) &
+          sleep 3
+      - name: install.sh
+        if: runner.os != 'Windows'
+        env:
+          CLAUDE_SESSIONS_BASE_URL: http://127.0.0.1:8765
+          CLAUDE_SESSIONS_INSTALL_DIR: ${{ runner.temp }}/bin
+        run: |
+          sh install.sh
+          "$CLAUDE_SESSIONS_INSTALL_DIR/claude-sessions" version | grep 0.0.0-ci
+      - name: install.ps1
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          CLAUDE_SESSIONS_BASE_URL: http://127.0.0.1:8765
+          CLAUDE_SESSIONS_INSTALL_DIR: ${{ runner.temp }}\bin
+        run: |
+          ./install.ps1
+          & "$env:CLAUDE_SESSIONS_INSTALL_DIR\claude-sessions.exe" version | Select-String 0.0.0-ci

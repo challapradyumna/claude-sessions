@@ -1,5 +1,9 @@
 # claude-sessions
 
+[![CI](https://github.com/challapradyumna/claude-sessions/actions/workflows/ci.yml/badge.svg)](https://github.com/challapradyumna/claude-sessions/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/challapradyumna/claude-sessions)](https://github.com/challapradyumna/claude-sessions/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 Save your open [Claude Code](https://claude.com/claude-code) sessions before a reboot and bring them all back afterwards, each in its own terminal tab.
 
 ```console
@@ -10,24 +14,34 @@ $ claude-sessions restore
 Restored 7 session(s) via iterm.
 ```
 
-It's a single Python file with no dependencies. It works on macOS, Linux (including WSL) and Windows.
+It's a single standalone binary for macOS, Linux and Windows on Intel and ARM. You don't need Python, Node or anything else installed.
 
 ## Install
 
-macOS / Linux:
+**macOS / Linux**
 
 ```sh
-curl -fsSL https://github.com/challapradyumna/claude-sessions/releases/latest/download/claude-sessions \
-  -o ~/.local/bin/claude-sessions && chmod +x ~/.local/bin/claude-sessions
+curl -fsSL https://raw.githubusercontent.com/challapradyumna/claude-sessions/main/install.sh | sh
 ```
 
-Any directory on your `PATH` works instead of `~/.local/bin`.
+This installs to `~/.local/bin` and checks the download against the release's SHA-256 checksums. Set `CLAUDE_SESSIONS_INSTALL_DIR` to install somewhere else, or `CLAUDE_SESSIONS_VERSION=v0.1.0` to install a specific release.
 
-Windows (PowerShell). Python 3 needs to be installed:
+**Windows (PowerShell)**
 
 ```powershell
-Invoke-WebRequest https://github.com/challapradyumna/claude-sessions/releases/latest/download/claude-sessions -OutFile claude-sessions
-python claude-sessions save
+irm https://raw.githubusercontent.com/challapradyumna/claude-sessions/main/install.ps1 | iex
+```
+
+This installs to `%LOCALAPPDATA%\Programs\claude-sessions` and adds that folder to your user `PATH`.
+
+**Manual download**
+
+Download the binary for your platform from the [latest release](https://github.com/challapradyumna/claude-sessions/releases/latest), rename it to `claude-sessions` (`claude-sessions.exe` on Windows), make it executable and put it on your `PATH`.
+
+**With Go**
+
+```sh
+go install github.com/challapradyumna/claude-sessions@latest
 ```
 
 ## Usage
@@ -39,6 +53,7 @@ python claude-sessions save
 | `claude-sessions restore --dry-run` | Prints the commands and opens nothing |
 | `claude-sessions restore --terminal NAME` | Uses a specific terminal launcher instead of the detected one |
 | `claude-sessions list` | Shows running and saved sessions, and the terminal that restore would use |
+| `claude-sessions version` | Prints the version |
 
 Run `save` right before you restart. Let busy sessions finish their response first, or they'll resume mid-turn.
 
@@ -57,7 +72,7 @@ Run `save` right before you restart. Let busy sessions finish their response fir
 
 Inside tmux, `restore` adds one window per session. Outside tmux, it creates a detached `claude-restore` session that you attach to with `tmux attach -t claude-restore`.
 
-iTerm2 is the launcher that has been used on a real machine. The others are built from each terminal's documented command-line options. If one doesn't work for you, please [open an issue](https://github.com/challapradyumna/claude-sessions/issues).
+iTerm2 is the launcher that has been used on a real machine. The others are built from each terminal's documented command-line options. If one doesn't work for you, please [open an issue](https://github.com/challapradyumna/claude-sessions/issues/new/choose).
 
 ## How it works
 
@@ -84,6 +99,7 @@ Conversations aren't copied. They already live on disk at `~/.claude/projects/<d
 - Background processes a session started (dev servers, watchers) aren't restored. Only the conversation comes back.
 - `~/.claude/sessions/*.json` is an internal Claude Code file, not a documented API. If its format changes, `save` may need an update.
 - If the same session is open in two processes, it's saved once. Close one of them, since both write to the same transcript.
+- The binaries aren't code-signed. The install scripts don't trigger macOS Gatekeeper, but a binary downloaded in a browser may. Run `xattr -d com.apple.quarantine claude-sessions` to clear it.
 
 ## Contributing
 

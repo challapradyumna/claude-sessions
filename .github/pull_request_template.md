@@ -1,7 +1,7 @@
 ## What & why
 
 ## Tested on
-<!-- OS + terminal + version, and `python -m unittest discover -s tests` -->
+<!-- OS + terminal + version, and `go test ./...` -->
 
 - [ ] Tests pass
 - [ ] README / CHANGELOG updated if behaviour changed

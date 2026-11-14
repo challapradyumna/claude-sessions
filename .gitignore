@@ -1,5 +1,6 @@
-__pycache__/
-*.pyc
-.venv/
+dist/
+/claude-sessions
+/cs
+*.exe
 .DS_Store
 saved-sessions.tsv*

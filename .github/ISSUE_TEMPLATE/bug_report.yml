@@ -6,7 +6,7 @@ body:
     id: version
     attributes:
       label: claude-sessions version
-      description: Output of `claude-sessions --version`
+      description: Output of `claude-sessions version`
     validations:
       required: true
   - type: input
