@@ -6,6 +6,22 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-14
+
+The tool now manages any number of named session sets. Restarts are one use case, alongside switching contexts and keeping standing setups.
+
+### Added
+- Named sets: `save NAME` and `restore NAME`. The name is optional and defaults to `default`.
+- `save NAME --dir PATH` saves only the sessions working in `PATH` or below it.
+- `sets` lists saved sets, `show NAME` lists a set's sessions and marks the ones running, and `delete NAME` removes a set.
+- `CLAUDE_SESSIONS_DIR` sets where sets are stored. The default is `~/.claude/session-sets`.
+
+### Changed
+- Sets are stored as `~/.claude/session-sets/<NAME>.tsv`. A v0.1.0 snapshot at `~/.claude/saved-sessions.tsv` is still read as the `default` set.
+
+### Removed
+- `CLAUDE_SESSIONS_FILE`, replaced by `CLAUDE_SESSIONS_DIR`.
+
 ## [0.1.0] - 2026-11-14
 
 ### Added
@@ -19,5 +35,6 @@ All notable changes to this project are documented here. The format follows
 - Skips sessions that are already running, have no transcript, or whose directory is gone. Saves a session once if it's open in two processes, and rejects malformed session IDs in an edited snapshot.
 - Honours `CLAUDE_CONFIG_DIR` and `CLAUDE_SESSIONS_FILE`.
 
-[Unreleased]: https://github.com/challapradyumna/claude-sessions/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/challapradyumna/claude-sessions/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/challapradyumna/claude-sessions/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/challapradyumna/claude-sessions/releases/tag/v0.1.0

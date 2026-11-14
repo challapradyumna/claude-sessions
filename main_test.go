@@ -17,7 +17,7 @@ func setup(t *testing.T) (dir string, live map[int]string) {
 	t.Helper()
 	dir = t.TempDir()
 	t.Setenv("CLAUDE_CONFIG_DIR", dir)
-	t.Setenv("CLAUDE_SESSIONS_FILE", "")
+	t.Setenv("CLAUDE_SESSIONS_DIR", "")
 	live = map[int]string{}
 	old := processName
 	processName = func(pid int) string { return live[pid] }
@@ -43,10 +43,13 @@ func writeTranscript(t *testing.T, dir, id string) {
 	must(t, os.WriteFile(filepath.Join(p, id+".jsonl"), nil, 0o600))
 }
 
-func writeSaved(t *testing.T, lines ...string) {
+func writeSet(t *testing.T, name string, lines ...string) {
 	t.Helper()
-	must(t, os.WriteFile(saveFile(), []byte(strings.Join(lines, "\n")+"\n"), 0o600))
+	must(t, os.MkdirAll(setsDir(), 0o700))
+	must(t, os.WriteFile(setPath(name), []byte(strings.Join(lines, "\n")+"\n"), 0o600))
 }
+
+func writeSaved(t *testing.T, lines ...string) { t.Helper(); writeSet(t, defaultSet, lines...) }
 
 func must(t *testing.T, err error) {
 	t.Helper()
@@ -119,8 +122,8 @@ func TestSaveThenRestoreDryRun(t *testing.T) {
 	if code, out := runCLI("save"); code != 0 {
 		t.Fatalf("save: %d %s", code, out)
 	}
-	if n := len(readSaved()); n != 1 {
-		t.Fatalf("saved %d", n)
+	if rows, _ := readSet(defaultSet); len(rows) != 1 {
+		t.Fatalf("saved %v", rows)
 	}
 	delete(live, 1) // "after reboot"
 	code, out := runCLI("restore", "--dry-run")
@@ -135,14 +138,14 @@ func TestSaveKeepsBackup(t *testing.T) {
 	live[1] = "claude"
 	runCLI("save")
 	runCLI("save")
-	if _, err := os.Stat(saveFile() + ".bak"); err != nil {
+	if _, err := os.Stat(setPath(defaultSet) + ".bak"); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestSaveWithNothingRunning(t *testing.T) {
 	setup(t)
-	if code, out := runCLI("save"); code != 1 || !strings.Contains(out, "No running") {
+	if code, out := runCLI("save"); code != 1 || !strings.Contains(out, "nothing saved") {
 		t.Fatalf("%d %s", code, out)
 	}
 }
@@ -216,6 +219,95 @@ func TestBadArgs(t *testing.T) {
 	}
 	if code, _ := runCLI("frobnicate"); code != 2 {
 		t.Error("unknown command should exit 2")
+	}
+}
+
+func TestNamedSetsAreIndependent(t *testing.T) {
+	dir, live := setup(t)
+	writeSession(t, dir, 1, map[string]any{"sessionId": "a"})
+	live[1] = "claude"
+	runCLI("save", "work")
+	delete(live, 1)
+	writeSession(t, dir, 2, map[string]any{"sessionId": "b"})
+	live[2] = "claude"
+	runCLI("save", "play")
+	work, _ := readSet("work")
+	play, _ := readSet("play")
+	if strings.Join(ids(work), ",") != "a" || strings.Join(ids(play), ",") != "b" {
+		t.Fatalf("work=%v play=%v", work, play)
+	}
+	_, out := runCLI("sets")
+	if !strings.Contains(out, "work") || !strings.Contains(out, "play") {
+		t.Fatalf("sets: %s", out)
+	}
+}
+
+func TestSaveDirFilter(t *testing.T) {
+	dir, live := setup(t)
+	proj := filepath.Join(dir, "proj")
+	other := filepath.Join(dir, "projector") // shares a prefix but is not inside proj
+	must(t, os.MkdirAll(filepath.Join(proj, "sub"), 0o700))
+	must(t, os.MkdirAll(other, 0o700))
+	writeSession(t, dir, 1, map[string]any{"sessionId": "in", "cwd": proj})
+	writeSession(t, dir, 2, map[string]any{"sessionId": "nested", "cwd": filepath.Join(proj, "sub")})
+	writeSession(t, dir, 3, map[string]any{"sessionId": "out", "cwd": other})
+	live[1], live[2], live[3] = "claude", "claude", "claude"
+	if code, out := runCLI("save", "proj", "--dir", proj); code != 0 {
+		t.Fatalf("%d %s", code, out)
+	}
+	rows, _ := readSet("proj")
+	if got := strings.Join(ids(rows), ","); got != "in,nested" {
+		t.Fatalf("got %s", got)
+	}
+}
+
+func TestShowAndDelete(t *testing.T) {
+	dir, live := setup(t)
+	writeSet(t, "w", "1\trunning-one\t"+dir+"\tx", "2\tidle-one\t"+dir+"\ty")
+	writeSession(t, dir, 1, map[string]any{"sessionId": "running-one"})
+	live[1] = "claude"
+	_, out := runCLI("show", "w")
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	if len(lines) != 2 || strings.Fields(lines[0])[1] != "running" || strings.Fields(lines[1])[1] == "running" {
+		t.Fatalf("show: %s", out)
+	}
+	if code, _ := runCLI("delete", "w"); code != 0 {
+		t.Fatal("delete failed")
+	}
+	if _, ok := readSet("w"); ok {
+		t.Fatal("set still exists")
+	}
+	if code, _ := runCLI("delete", "w"); code != 1 {
+		t.Fatal("deleting a missing set should exit 1")
+	}
+	if code, _ := runCLI("show", "nope"); code != 1 {
+		t.Fatal("showing a missing set should exit 1")
+	}
+}
+
+func TestLegacySnapshotIsDefaultSet(t *testing.T) {
+	dir, _ := setup(t)
+	must(t, os.WriteFile(legacyFile(), []byte("1\told\t"+dir+"\tlegacy\n"), 0o600))
+	writeTranscript(t, dir, "old")
+	_, out := runCLI("restore", "--dry-run")
+	if !strings.Contains(out, "claude --resume old") {
+		t.Fatalf("restore: %s", out)
+	}
+	_, out = runCLI("sets")
+	if !strings.Contains(out, "default") {
+		t.Fatalf("sets: %s", out)
+	}
+}
+
+func TestInvalidSetNames(t *testing.T) {
+	setup(t)
+	for _, name := range []string{"../escape", "a/b", ".hidden", ""} {
+		if code, _ := runCLI("save", name); code != 2 {
+			t.Errorf("save %q should exit 2", name)
+		}
+	}
+	if code, _ := runCLI("restore", "a", "b"); code != 2 {
+		t.Error("two set names should exit 2")
 	}
 }
 

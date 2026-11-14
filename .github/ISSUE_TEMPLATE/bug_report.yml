@@ -25,6 +25,6 @@ body:
   - type: textarea
     id: output
     attributes:
-      label: Output of `claude-sessions list` and `claude-sessions restore --dry-run`
+      label: Output of `claude-sessions list` and `claude-sessions restore NAME --dry-run`
       description: Feel free to redact paths and session names.
       render: text

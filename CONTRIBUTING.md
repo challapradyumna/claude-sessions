@@ -6,7 +6,7 @@ Thanks for helping. Bug reports, fixes and new terminal launchers are all welcom
 
 - **Standard library only.** The tool ships as one dependency-free binary, so please don't add modules to `go.mod`.
 - **Never probe whether a Windows process is alive by signalling it.** On Windows, signalling a process terminates it. Use `processName()` instead.
-- **Validate before you splice.** Session IDs are checked against `validID` before they go into shell or AppleScript strings, because the snapshot file is user-editable. Keep it that way.
+- **Validate before you splice.** Session IDs are checked against `validID` before they go into shell or AppleScript strings, because set files are user-editable. Set names are checked against `validSet`, which also stops path traversal. Keep it that way.
 
 ## Development
 
@@ -26,7 +26,7 @@ The tests point `CLAUDE_CONFIG_DIR` at a temporary directory and mock the proces
 
 | File | Contents |
 |---|---|
-| `main.go` | CLI, session discovery, save / list / restore |
+| `main.go` | CLI, session discovery, sets (save / restore / sets / show / delete) |
 | `terminals.go` | One launcher per terminal, plus `detectTerminal()` |
 | `proc_unix.go`, `proc_windows.go` | Platform-specific process lookup and spawning |
 | `install.sh`, `install.ps1` | Installers that download a release binary and verify its checksum |
