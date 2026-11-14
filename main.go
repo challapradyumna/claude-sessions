@@ -7,6 +7,11 @@
 //
 // Source: <claude config dir>/sessions/<pid>.json (Claude Code writes one per live session)
 // Sets:   <claude config dir>/session-sets/<NAME>.tsv  (pid, sessionId, cwd, name)
+//
+// IMPORTANT: a set only points at conversations; it doesn't copy them. Claude Code deletes
+// transcripts older than `cleanupPeriodDays` (default 30) at startup, and a deleted session can't be
+// resumed. If you want sets to stay restorable for longer, raise it in ~/.claude/settings.json,
+// e.g. {"cleanupPeriodDays": 365}.
 package main
 
 import (
@@ -19,12 +24,16 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // version is set at build time with -ldflags "-X main.version=..."
 var version = "dev"
 
 const defaultSet = "default"
+
+// defaultRetentionDays is Claude Code's default cleanupPeriodDays.
+const defaultRetentionDays = 30
 
 const usage = `claude-sessions: save a set of open Claude Code sessions and restore it later.
 
@@ -39,6 +48,10 @@ Usage:
   claude-sessions delete NAME                delete a set
   claude-sessions list                       show running sessions and saved sets (default)
   claude-sessions version
+
+Sets point at conversations, they don't copy them. Claude Code deletes transcripts older than
+cleanupPeriodDays (default 30) in ~/.claude/settings.json. Raise it, e.g. to 365, to keep sets
+restorable for longer.
 
 Environment:
   CLAUDE_CONFIG_DIR      Claude Code config dir (default ~/.claude)
@@ -182,7 +195,7 @@ func readSet(name string) ([]Session, bool) {
 type setInfo struct {
 	Name    string
 	Count   int
-	ModTime string
+	ModTime time.Time
 }
 
 func listSets() []setInfo {
@@ -196,7 +209,7 @@ func listSets() []setInfo {
 		}
 		b, _ := os.ReadFile(path)
 		seen[name] = true
-		out = append(out, setInfo{name, len(parseSet(b)), st.ModTime().Format("2006-01-02 15:04")})
+		out = append(out, setInfo{name, len(parseSet(b)), st.ModTime()})
 	}
 	for _, f := range files {
 		add(strings.TrimSuffix(filepath.Base(f), ".tsv"), f)
@@ -209,6 +222,21 @@ func listSets() []setInfo {
 func hasTranscript(id string) bool {
 	m, _ := filepath.Glob(filepath.Join(claudeDir(), "projects", "*", id+".jsonl"))
 	return len(m) > 0
+}
+
+// retentionDays reads cleanupPeriodDays from the user's Claude Code settings. set reports whether it was set.
+// Project and managed settings can override it; this is only used for hints.
+func retentionDays() (days int, set bool) {
+	b, err := os.ReadFile(filepath.Join(claudeDir(), "settings.json"))
+	if err == nil {
+		var cfg struct {
+			CleanupPeriodDays *int `json:"cleanupPeriodDays"`
+		}
+		if json.Unmarshal(b, &cfg) == nil && cfg.CleanupPeriodDays != nil && *cfg.CleanupPeriodDays > 0 {
+			return *cfg.CleanupPeriodDays, true
+		}
+	}
+	return defaultRetentionDays, false
 }
 
 func isDir(p string) bool {
@@ -313,6 +341,11 @@ func cmdSave(args []string, w io.Writer) int {
 			fmt.Fprintln(w, "      ^ still busy: if you close it now, it resumes mid-turn")
 		}
 	}
+	if days, set := retentionDays(); !set || days < 90 {
+		fmt.Fprintf(w, "note: Claude Code deletes transcripts older than %d days (cleanupPeriodDays), after which this set\n"+
+			"      can't be restored. To keep sets longer, set e.g. \"cleanupPeriodDays\": 365 in %s\n",
+			days, filepath.Join(claudeDir(), "settings.json"))
+	}
 	return 0
 }
 
@@ -322,8 +355,17 @@ func cmdSets(w io.Writer) int {
 		fmt.Fprintln(w, "No saved sets. Create one with: claude-sessions save NAME")
 		return 0
 	}
+	days, _ := retentionDays()
+	stale := false
 	for _, s := range sets {
-		fmt.Fprintf(w, "  %-24s %3d session(s)   saved %s\n", s.Name, s.Count, s.ModTime)
+		flag := ""
+		if time.Since(s.ModTime) > time.Duration(days)*24*time.Hour {
+			flag, stale = "  (older than cleanupPeriodDays: some sessions may be gone)", true
+		}
+		fmt.Fprintf(w, "  %-24s %3d session(s)   saved %s%s\n", s.Name, s.Count, s.ModTime.Format("2006-01-02 15:04"), flag)
+	}
+	if stale {
+		fmt.Fprintf(w, "Claude Code deletes transcripts older than %d days; see 'claude-sessions help'.\n", days)
 	}
 	return 0
 }
@@ -423,6 +465,7 @@ func cmdRestore(args []string, w io.Writer) int {
 		running[r.ID] = true
 	}
 	var jobs []Session
+	missing := 0
 	for _, r := range saved {
 		switch {
 		case !validID.MatchString(r.ID):
@@ -431,11 +474,17 @@ func cmdRestore(args []string, w io.Writer) int {
 			fmt.Fprintf(w, "skip (already running): %s %s\n", r.ID, r.Name)
 		case !hasTranscript(r.ID):
 			fmt.Fprintf(w, "skip (no transcript):   %s %s\n", r.ID, r.Name)
+			missing++
 		case !isDir(r.Cwd):
 			fmt.Fprintf(w, "skip (folder missing):  %s %s\n", r.ID, r.Cwd)
 		default:
 			jobs = append(jobs, r)
 		}
+	}
+	if missing > 0 {
+		days, _ := retentionDays()
+		fmt.Fprintf(w, "note: %d transcript(s) are gone, most likely removed by Claude Code's cleanup "+
+			"(cleanupPeriodDays = %d). Raise it in settings.json to keep sessions longer.\n", missing, days)
 	}
 	if len(jobs) == 0 {
 		fmt.Fprintln(w, "Nothing to restore.")

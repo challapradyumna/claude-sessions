@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-14
+
+### Added
+- Warnings about Claude Code's transcript cleanup (`cleanupPeriodDays`, default 30 days). `save` warns while it's unset or under 90 days, `sets` flags sets older than it, and `restore` explains missing transcripts.
+- A note at the top of the README on raising `cleanupPeriodDays` so sets stay restorable.
+
 ## [0.2.0] - 2026-11-14
 
 The tool now manages any number of named session sets. Restarts are one use case, alongside switching contexts and keeping standing setups.
@@ -35,6 +41,7 @@ The tool now manages any number of named session sets. Restarts are one use case
 - Skips sessions that are already running, have no transcript, or whose directory is gone. Saves a session once if it's open in two processes, and rejects malformed session IDs in an edited snapshot.
 - Honours `CLAUDE_CONFIG_DIR` and `CLAUDE_SESSIONS_FILE`.
 
-[Unreleased]: https://github.com/challapradyumna/claude-sessions/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/challapradyumna/claude-sessions/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/challapradyumna/claude-sessions/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/challapradyumna/claude-sessions/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/challapradyumna/claude-sessions/releases/tag/v0.1.0

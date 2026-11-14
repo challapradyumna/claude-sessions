@@ -18,6 +18,15 @@ $ claude-sessions restore billing-refactor
 Restored 4 session(s) from set "billing-refactor" via iterm.
 ```
 
+> [!IMPORTANT]
+> **Raise Claude Code's `cleanupPeriodDays` if you want sets to last.** A set only points at conversations; it doesn't copy them. By default Claude Code deletes transcripts older than **30 days** when it starts, and a deleted session can't be resumed. Pick a retention period that covers how long you'd want to come back to a set, and put it in `~/.claude/settings.json`:
+>
+> ```json
+> { "cleanupPeriodDays": 365 }
+> ```
+>
+> `claude-sessions` warns you on `save` while the setting is unset or short, flags sets in `claude-sessions sets` that are older than it, and explains on `restore` when transcripts are missing.
+
 Use it to:
 
 - **Switch contexts.** Save a project's sessions, close them, work on something else, and bring them all back later.
@@ -113,6 +122,7 @@ Conversations aren't copied. They already live on disk at `~/.claude/projects/<d
 
 ## Limitations
 
+- Sessions removed by Claude Code's transcript cleanup (`cleanupPeriodDays`, default 30 days) can't be restored. See the note at the top.
 - Background processes a session started (dev servers, watchers) aren't restored. Only the conversation comes back.
 - `save` records sessions; it doesn't close them.
 - `~/.claude/sessions/*.json` is an internal Claude Code file, not a documented API. If its format changes, `save` may need an update.

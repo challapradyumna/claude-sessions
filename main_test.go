@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // setup points CLAUDE_CONFIG_DIR at a temp dir and replaces process lookup with the returned map.
@@ -308,6 +309,35 @@ func TestInvalidSetNames(t *testing.T) {
 	}
 	if code, _ := runCLI("restore", "a", "b"); code != 2 {
 		t.Error("two set names should exit 2")
+	}
+}
+
+func TestRetentionHints(t *testing.T) {
+	dir, live := setup(t)
+	writeSession(t, dir, 1, map[string]any{"sessionId": "a"})
+	live[1] = "claude"
+
+	if d, set := retentionDays(); d != 30 || set {
+		t.Fatalf("default retention: %d %v", d, set)
+	}
+	if _, out := runCLI("save", "x"); !strings.Contains(out, "cleanupPeriodDays") {
+		t.Errorf("save should warn when cleanupPeriodDays is unset:\n%s", out)
+	}
+
+	must(t, os.WriteFile(filepath.Join(dir, "settings.json"), []byte(`{"cleanupPeriodDays": 365}`), 0o600))
+	if _, out := runCLI("save", "x"); strings.Contains(out, "cleanupPeriodDays") {
+		t.Errorf("save should not warn with long retention:\n%s", out)
+	}
+
+	must(t, os.WriteFile(filepath.Join(dir, "settings.json"), []byte(`{"cleanupPeriodDays": 1}`), 0o600))
+	old := time.Now().Add(-72 * time.Hour)
+	must(t, os.Chtimes(setPath("x"), old, old))
+	if _, out := runCLI("sets"); !strings.Contains(out, "older than cleanupPeriodDays") {
+		t.Errorf("sets should flag stale sets:\n%s", out)
+	}
+	delete(live, 1) // closed, and its transcript was never written (as if cleaned up)
+	if _, out := runCLI("restore", "x", "--dry-run"); !strings.Contains(out, "transcript(s) are gone") {
+		t.Errorf("restore should explain missing transcripts:\n%s", out)
 	}
 }
 
